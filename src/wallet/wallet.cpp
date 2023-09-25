@@ -904,6 +904,34 @@ std::pair<PaymentAddress, RecipientType> CWallet::GetPaymentAddressForRecipient(
             // It really doesn't appear to be ours, so treat it as a counterparty address.
             return std::make_pair(PaymentAddress{addr}, RecipientType::CounterpartyAddress);
         },
+        [&](const CWithdrawal& addr) {
+            auto ua = self->FindUnifiedAddressByReceiver(addr.getRefundKeyID());
+            if (ua.has_value()) {
+                // we do not generate unified addresses for change keys
+                return std::make_pair(PaymentAddress{ua.value()}, RecipientType::WalletExternalAddress);
+            }
+
+            // If it's in the address book, it's a legacy external address
+            if (mapAddressBook.count(addr.getRefundKeyID())) {
+                return std::make_pair(PaymentAddress{addr.getRefundKeyID()}, RecipientType::WalletExternalAddress);
+            }
+
+            if (::IsMine(*this, addr.getRefundKeyID())) {
+                // For keys that are ours, check if they are legacy change keys. Anything that has an
+                // internal BIP-44 keypath is a post-mnemonic internal address.
+                auto keyMeta = mapKeyMetadata.find(addr.getRefundKeyID());
+                if (keyMeta == mapKeyMetadata.end() || keyMeta->second.hdKeypath == "") {
+                    return std::make_pair(PaymentAddress{addr.getRefundKeyID()}, RecipientType::LegacyChangeAddress);
+                } else if (IsInternalKeyPath(44, BIP44CoinType(), keyMeta->second.hdKeypath)) {
+                    return std::make_pair(PaymentAddress{addr.getRefundKeyID()}, RecipientType::WalletInternalAddress);
+                } else {
+                    return std::make_pair(PaymentAddress{addr.getRefundKeyID()}, RecipientType::WalletExternalAddress);
+                }
+            }
+
+            // It really doesn't appear to be ours, so treat it as a counterparty address.
+            return std::make_pair(PaymentAddress{addr.getRefundKeyID()}, RecipientType::CounterpartyAddress);
+        },
         [&](const CScriptID& addr) {
             auto ua = self->FindUnifiedAddressByReceiver(addr);
             if (ua.has_value()) {
@@ -6434,6 +6462,11 @@ public:
             vKeys.push_back(keyId);
     }
 
+    void operator()(const CWithdrawal &withdrawal) {
+        if (keystore.HaveKey(withdrawal.getRefundKeyID()))
+            vKeys.push_back(withdrawal.getRefundKeyID());
+    }
+
     void operator()(const CScriptID &scriptId) {
         CScript script;
         if (keystore.GetCScript(scriptId, script))
@@ -6923,6 +6956,7 @@ NoteFilter NoteFilter::ForPaymentAddresses(const std::vector<libzcash::PaymentAd
     for (const auto& addr: paymentAddrs) {
         examine(addr, match {
             [&](const CKeyID& keyId) { },
+            [&](const CWithdrawal& withdrawal) { },
             [&](const CScriptID& scriptId) { },
             [&](const libzcash::SproutPaymentAddress& addr) {
                 addrs.sproutAddresses.insert(addr);
@@ -7190,6 +7224,11 @@ bool PaymentAddressBelongsToWallet::operator()(const CKeyID &addr) const
     CScript script = GetScriptForDestination(addr);
     return m_wallet->HaveKey(addr) || m_wallet->HaveWatchOnly(script);
 }
+bool PaymentAddressBelongsToWallet::operator()(const CWithdrawal &addr) const
+{
+    CScript script = GetScriptForDestination(addr);
+    return m_wallet->HaveKey(addr.getRefundKeyID()) || m_wallet->HaveWatchOnly(script);
+}
 bool PaymentAddressBelongsToWallet::operator()(const CScriptID &addr) const
 {
     CScript script = GetScriptForDestination(addr);
@@ -7244,6 +7283,23 @@ PaymentAddressSource GetSourceForPaymentAddress::operator()(const CKeyID &addr) 
         } else if (m_wallet->HaveKey(addr)) {
             return PaymentAddressSource::Random;
         } else if (m_wallet->HaveWatchOnly(GetScriptForDestination(addr))) {
+            return PaymentAddressSource::ImportedWatchOnly;
+        }
+    }
+
+    return ufvkSource;
+}
+PaymentAddressSource GetSourceForPaymentAddress::operator()(const CWithdrawal &addr) const
+{
+    auto ufvkSource = this->GetUnifiedSource(addr.getRefundKeyID());
+    if (ufvkSource == PaymentAddressSource::AddressNotFound) {
+        auto keyMeta = pwalletMain->mapKeyMetadata[addr.getRefundKeyID()];
+        auto account = libzcash::ParseHDKeypathAccount(44, Params().BIP44CoinType(), keyMeta.hdKeypath);
+        if (account.has_value() && account.value() == ZCASH_LEGACY_ACCOUNT) {
+            return PaymentAddressSource::MnemonicHDSeed;
+        } else if (m_wallet->HaveKey(addr.getRefundKeyID())) {
+            return PaymentAddressSource::Random;
+        } else if (m_wallet->HaveWatchOnly(GetScriptForDestination(addr.getRefundKeyID()))) {
             return PaymentAddressSource::ImportedWatchOnly;
         }
     }
@@ -7763,6 +7819,7 @@ TransactionStrategy::PermittedAccountSpendingPolicy() const {
 bool ZTXOSelector::SelectsTransparent() const {
     return examine(this->pattern, match {
         [](const CKeyID& keyId) { return true; },
+        [](const CWithdrawal& withdrawal) { return true; },
         [](const CScriptID& scriptId) { return true; },
         [](const libzcash::SproutPaymentAddress& addr) { return false; },
         [](const libzcash::SproutViewingKey& vk) { return false; },

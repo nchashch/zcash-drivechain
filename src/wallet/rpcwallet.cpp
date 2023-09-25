@@ -596,6 +596,9 @@ UniValue listaddresses(const UniValue& params, bool fHelp)
         [&](const CScriptID& addr) -> std::optional<PaymentAddressSource> {
             return GetSourceForPaymentAddress(pwalletMain)(addr);
         },
+        [&](const CWithdrawal& addr) -> std::optional<PaymentAddressSource> {
+            return GetSourceForPaymentAddress(pwalletMain)(addr);
+        },
         [&](const CNoDestination& addr) -> std::optional<PaymentAddressSource> {
             return std::nullopt;
         },

@@ -57,18 +57,21 @@ CXXBRIDGE_RS = \
   rust/src/ed25519.rs \
   rust/src/equihash.rs \
   rust/src/streams.rs \
+  rust/src/drivechain.rs \
   rust/src/bridge.rs
 CXXBRIDGE_H = \
   rust/gen/include/rust/blake2b.h \
   rust/gen/include/rust/ed25519.h \
   rust/gen/include/rust/equihash.h \
   rust/gen/include/rust/streams.h \
+  rust/gen/include/rust/drivechain.h \
   rust/gen/include/rust/bridge.h
 CXXBRIDGE_CPP = \
   rust/gen/src/blake2b.cpp \
   rust/gen/src/ed25519.cpp \
   rust/gen/src/equihash.cpp \
   rust/gen/src/streams.cpp \
+  rust/gen/include/rust/drivechain.cpp \
   rust/gen/src/bridge.cpp
 
 # We add a rust/cxx.h include to indicate that we provide this (via the rustcxx depends
@@ -545,6 +548,7 @@ libbitcoin_consensus_a_SOURCES = \
 libbitcoin_common_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
 libbitcoin_common_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libbitcoin_common_a_SOURCES = \
+  drivechain.cpp \
   base58.cpp \
   bech32.cpp \
   chainparams.cpp \

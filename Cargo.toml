@@ -67,6 +67,8 @@ zcash_proofs = { version = "0.12", features = ["directories"] }
 ed25519-zebra = "3.1"
 zeroize = "1.4.2"
 
+drivechain = "0.1.0"
+
 # Rust/C++ interop
 # The version needs to match depends/packages/native_cxxbridge.mk
 cxx = { version = "=1.0.95", features = ["c++17"] }
@@ -118,3 +120,7 @@ features = ["ansi", "env-filter", "fmt", "time"]
 lto = 'thin'
 panic = 'abort'
 codegen-units = 1
+
+[patch.crates-io]
+# drivechain = { git = "https://github.com/nchashch/drivechain", rev = "db1c2e39d550ed6a6256f84e82899c3845d30ef0" }
+drivechain = { path = "../drivechain" }

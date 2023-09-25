@@ -2259,6 +2259,7 @@ public:
     PaymentAddressBelongsToWallet(CWallet *wallet) : m_wallet(wallet) {}
 
     bool operator()(const CKeyID &zaddr) const;
+    bool operator()(const CWithdrawal &zaddr) const;
     bool operator()(const CScriptID &zaddr) const;
     bool operator()(const libzcash::SproutPaymentAddress &zaddr) const;
     bool operator()(const libzcash::SaplingPaymentAddress &zaddr) const;
@@ -2300,6 +2301,7 @@ public:
     PaymentAddressSource GetUnifiedSource(const libzcash::Receiver& receiver) const;
 
     PaymentAddressSource operator()(const CKeyID &zaddr) const;
+    PaymentAddressSource operator()(const CWithdrawal &zaddr) const;
     PaymentAddressSource operator()(const CScriptID &zaddr) const;
     PaymentAddressSource operator()(const libzcash::SproutPaymentAddress &zaddr) const;
     PaymentAddressSource operator()(const libzcash::SaplingPaymentAddress &zaddr) const;

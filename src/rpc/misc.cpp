@@ -158,6 +158,11 @@ public:
         }
         return obj;
     }
+
+    UniValue operator()(const CWithdrawal &withdrawal) const {
+        // FIXME: Actually implement this.
+        UniValue obj(UniValue::VOBJ);
+    }
 };
 #endif
 

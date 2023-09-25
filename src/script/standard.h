@@ -19,6 +19,31 @@ static const bool DEFAULT_ACCEPT_DATACARRIER = true;
 class CKeyID;
 class CScript;
 
+/** A withdrawal request: refund KeyID and concat(mainchain destination, mainchain fee) encoded as 28 bytes in wtData. */
+class CWithdrawal
+{
+public:
+    // Do we ever want to create an empty CWithdrawal?
+    CWithdrawal() : refundKeyID(), mainAddress(), mainFee() {};
+    CWithdrawal(const uint160& refundKeyID, const uint160& mainAddress, const CAmount& mainFee) : refundKeyID(refundKeyID), mainAddress(mainAddress), mainFee(mainFee) {}
+    CWithdrawal(const uint160& refundKeyID, const std::string& mainAddress, const CAmount& mainFee);
+    uint160 refundKeyID;
+    uint160 mainAddress;
+    CAmount mainFee;
+    friend bool operator==(const CWithdrawal &a, const CWithdrawal &b) {
+        return a.refundKeyID == b.refundKeyID && a.mainAddress == b.mainAddress && a.mainFee == b.mainFee;
+    }
+    friend bool operator!=(const CWithdrawal &a, const CWithdrawal &b) {
+        return a.refundKeyID != b.refundKeyID || a.mainAddress != b.mainAddress || a.mainFee != b.mainFee;
+    }
+    friend bool operator<(const CWithdrawal &a, const CWithdrawal &b) {
+        return a.mainFee < b.mainFee || a.mainAddress < b.mainAddress || a.refundKeyID < b.refundKeyID;
+    }
+    CKeyID getRefundKeyID() const {
+        return CKeyID(refundKeyID);
+    }
+};
+
 /**
  * Default setting for nMaxDatacarrierBytes. 80 bytes of data, +1 for OP_RETURN,
  * +2 for the pushdata opcodes.
@@ -69,7 +94,7 @@ public:
  *  * CScriptID: TX_SCRIPTHASH destination
  *  A CTxDestination is the internal data type encoded in a bitcoin address
  */
-typedef std::variant<CNoDestination, CKeyID, CScriptID> CTxDestination;
+typedef std::variant<CNoDestination, CKeyID, CScriptID, CWithdrawal> CTxDestination;
 
 /** Check whether a CTxDestination is a CNoDestination. */
 bool IsValidDestination(const CTxDestination& dest);
