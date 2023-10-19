@@ -122,5 +122,5 @@ panic = 'abort'
 codegen-units = 1
 
 [patch.crates-io]
-# drivechain = { git = "https://github.com/nchashch/drivechain", rev = "db1c2e39d550ed6a6256f84e82899c3845d30ef0" }
-drivechain = { path = "../drivechain" }
+drivechain = { git = "https://github.com/nchashch/drivechain", rev = "0184bcf8e3802511666b45d9839fdfcb260714e1" }
+# drivechain = { path = "../drivechain" }
