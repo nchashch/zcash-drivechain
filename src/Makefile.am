@@ -71,7 +71,7 @@ CXXBRIDGE_CPP = \
   rust/gen/src/ed25519.cpp \
   rust/gen/src/equihash.cpp \
   rust/gen/src/streams.cpp \
-  rust/gen/include/rust/drivechain.cpp \
+  rust/gen/src/drivechain.cpp \
   rust/gen/src/bridge.cpp
 
 # We add a rust/cxx.h include to indicate that we provide this (via the rustcxx depends
@@ -548,7 +548,6 @@ libbitcoin_consensus_a_SOURCES = \
 libbitcoin_common_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
 libbitcoin_common_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libbitcoin_common_a_SOURCES = \
-  drivechain.cpp \
   base58.cpp \
   bech32.cpp \
   chainparams.cpp \
@@ -717,7 +716,8 @@ libzcash_a_SOURCES = \
   zcash/memo.cpp \
   zcash/Note.cpp \
   zcash/prf.cpp \
-  zcash/util.cpp
+  zcash/util.cpp \
+  zcash/drivechain.cpp
 
 libzcash_a_CPPFLAGS = $(AM_CPPFLAGS) $(PIC_FLAGS) $(BITCOIN_INCLUDES)
 libzcash_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)

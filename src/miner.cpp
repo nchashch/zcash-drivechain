@@ -300,6 +300,9 @@ CMutableTransaction CreateCoinbaseTransaction(const CChainParams& chainparams, C
             AddOutputsToCoinbaseTxAndSign(mtx, chainparams, nHeight, nFees),
             minerAddress);
 
+        // Take MinerAddress and nFees as arguments.
+        std::vector<CTxOut> coinbaseOutputs = drivechain->GetCoinbaseOutputs();
+        mtx.vout.insert(mtx.vout.end(), coinbaseOutputs.begin(), coinbaseOutputs.end());
         mtx.vin[0].scriptSig = CScript() << nHeight << OP_0;
         return mtx;
 }
@@ -480,6 +483,7 @@ CBlockTemplate* BlockAssembler::CreateNewBlock(
     pblock->nBits          = GetNextWorkRequired(pindexPrev, pblock, chainparams.GetConsensus());
     pblock->nSolution.clear();
     pblocktemplate->vTxSigOps[0] = GetLegacySigOpCount(pblock->vtx[0]);
+    pblock->hashPrevMainBlock = drivechain->GetMainchainTip();
 
     CValidationState state;
     if (!TestBlockValidity(state, chainparams, *pblock, pindexPrev, true)) {

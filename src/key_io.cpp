@@ -35,6 +35,13 @@ public:
         return EncodeBase58Check(data);
     }
 
+    std::string operator()(const CWithdrawal& id) const
+    {
+        std::vector<unsigned char> data = keyConstants.Base58Prefix(KeyConstants::PUBKEY_ADDRESS);
+        data.insert(data.end(), id.getRefundKeyID().begin(), id.getRefundKeyID().end());
+        return EncodeBase58Check(data);
+    }
+
     std::string operator()(const CScriptID& id) const
     {
         std::vector<unsigned char> data = keyConstants.Base58Prefix(KeyConstants::SCRIPT_ADDRESS);
@@ -60,6 +67,7 @@ public:
     size_t operator()(const libzcash::SaplingPaymentAddress &zaddr) const { return 43; }
     size_t operator()(const CScriptID &p2sh) const { return 20; }
     size_t operator()(const CKeyID &p2pkh) const { return 20; }
+    size_t operator()(const CWithdrawal &withdrawal) const { return 20; }
     size_t operator()(const libzcash::UnknownReceiver &unknown) const { return unknown.data.size(); }
 };
 
@@ -99,6 +107,10 @@ public:
         memcpy(data, p2pkh.begin(), p2pkh.size());
     }
 
+    void operator()(const CWithdrawal &withdrawal) const {
+        memcpy(data, withdrawal.getRefundKeyID().begin(), withdrawal.getRefundKeyID().size());
+    }
+
     void operator()(const libzcash::UnknownReceiver &unknown) const {
         memcpy(data, unknown.data.data(), unknown.data.size());
     }
@@ -125,6 +137,10 @@ public:
     std::string operator()(const CKeyID& id) const
     {
         return DestinationEncoder(keyConstants)(id);
+    }
+    std::string operator()(const CWithdrawal& id) const
+    {
+        return DestinationEncoder(keyConstants)(id.getRefundKeyID());
     }
     std::string operator()(const CScriptID& id) const
     {
@@ -471,6 +487,10 @@ std::optional<libzcash::PaymentAddress> KeyIO::DecodePaymentAddress(const std::s
     return examine(DecodeDestination(str), match {
         [](const CKeyID& keyIdIn) {
             std::optional<libzcash::PaymentAddress> keyId = keyIdIn;
+            return keyId;
+        },
+        [](const CWithdrawal& withdrawalIn) {
+            std::optional<libzcash::PaymentAddress> keyId = withdrawalIn.getRefundKeyID();
             return keyId;
         },
         [](const CScriptID& scriptIdIn) {

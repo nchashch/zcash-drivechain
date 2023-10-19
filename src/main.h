@@ -16,6 +16,7 @@
 #include "chainparams.h"
 #include "coins.h"
 #include "consensus/upgrades.h"
+#include "drivechain.h"
 #include "fs.h"
 #include "net.h"
 #include "primitives/block.h"

@@ -130,6 +130,7 @@ UniValue blockheaderToJSON(const CBlockIndex* blockindex)
     CBlockIndex *pnext = chainActive.Next(blockindex);
     if (pnext)
         result.pushKV("nextblockhash", pnext->GetBlockHash().GetHex());
+    result.pushKV("prevmainblockhash", blockindex->hashPrevMainBlock.GetHex());
     return result;
 }
 

@@ -31,6 +31,7 @@ public:
     enum : int32_t { CURRENT_VERSION=4 };
     int32_t nVersion;
     uint256 hashPrevBlock;
+    uint256 hashPrevMainBlock;
     uint256 hashMerkleRoot;
     uint256 hashBlockCommitments;
     uint32_t nTime;
@@ -49,6 +50,7 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(this->nVersion);
         READWRITE(hashPrevBlock);
+        READWRITE(hashPrevMainBlock);
         READWRITE(hashMerkleRoot);
         READWRITE(hashBlockCommitments);
         READWRITE(nTime);
@@ -61,6 +63,7 @@ public:
     {
         nVersion = CBlockHeader::CURRENT_VERSION;
         hashPrevBlock.SetNull();
+        hashPrevMainBlock.SetNull();
         hashMerkleRoot.SetNull();
         hashBlockCommitments.SetNull();
         nTime = 0;
@@ -121,14 +124,15 @@ public:
     CBlockHeader GetBlockHeader() const
     {
         CBlockHeader block;
-        block.nVersion       = nVersion;
-        block.hashPrevBlock  = hashPrevBlock;
-        block.hashMerkleRoot = hashMerkleRoot;
+        block.nVersion             = nVersion;
+        block.hashPrevBlock        = hashPrevBlock;
+        block.hashPrevMainBlock    = hashPrevMainBlock;
+        block.hashMerkleRoot       = hashMerkleRoot;
         block.hashBlockCommitments = hashBlockCommitments;
-        block.nTime          = nTime;
-        block.nBits          = nBits;
-        block.nNonce         = nNonce;
-        block.nSolution      = nSolution;
+        block.nTime                = nTime;
+        block.nBits                = nBits;
+        block.nNonce               = nNonce;
+        block.nSolution            = nSolution;
         return block;
     }
 
@@ -159,6 +163,7 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(this->nVersion);
         READWRITE(hashPrevBlock);
+        READWRITE(hashPrevMainBlock);
         READWRITE(hashMerkleRoot);
         READWRITE(hashBlockCommitments);
         READWRITE(nTime);

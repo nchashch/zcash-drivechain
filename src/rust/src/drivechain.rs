@@ -37,6 +37,7 @@ mod ffi {
         Failed,
         Pending,
     }
+    #[namespace = "drivechain_rust"]
     extern "Rust" {
         type Drivechain;
         fn new_drivechain(

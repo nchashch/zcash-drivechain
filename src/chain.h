@@ -336,6 +336,7 @@ public:
 
     //! block header
     int nVersion;
+    uint256 hashPrevMainBlock;
     uint256 hashMerkleRoot;
     uint256 hashBlockCommitments;
     unsigned int nTime;
@@ -385,6 +386,7 @@ public:
         nChainOrchardValue = std::nullopt;
 
         nVersion       = 0;
+        hashPrevMainBlock = uint256();
         hashMerkleRoot = uint256();
         hashBlockCommitments = uint256();
         nTime          = 0;
@@ -403,6 +405,7 @@ public:
         SetNull();
 
         nVersion       = block.nVersion;
+        hashPrevMainBlock = block.hashPrevMainBlock;
         hashMerkleRoot = block.hashMerkleRoot;
         hashBlockCommitments = block.hashBlockCommitments;
         nTime          = block.nTime;
@@ -465,8 +468,9 @@ public:
 
     std::string ToString() const
     {
-        return strprintf("CBlockIndex(pprev=%p, nHeight=%d, merkle=%s, hashBlock=%s, HasSolution=%s)",
+        return strprintf("CBlockIndex(pprev=%p, nHeight=%d, hashPrevMainBlock=%s, merkle=%s, hashBlock=%s, HasSolution=%s)",
             pprev, nHeight,
+            hashPrevMainBlock.ToString(),
             hashMerkleRoot.ToString(),
             phashBlock ? GetBlockHash().ToString() : "(nil)",
             HasSolution());
@@ -567,6 +571,7 @@ public:
         // block header
         READWRITE(this->nVersion);
         READWRITE(hashPrev);
+        READWRITE(hashPrevMainBlock);
         READWRITE(hashMerkleRoot);
         READWRITE(hashBlockCommitments);
         READWRITE(nTime);
@@ -623,6 +628,7 @@ public:
         CBlockHeader header;
         header.nVersion             = nVersion;
         header.hashPrevBlock        = hashPrev;
+        header.hashPrevMainBlock    = hashPrevMainBlock;
         header.hashMerkleRoot       = hashMerkleRoot;
         header.hashBlockCommitments = hashBlockCommitments;
         header.nTime                = nTime;

@@ -10,7 +10,7 @@ const size_t THIS_SIDECHAIN = 5;
 CDrivechain::CDrivechain(fs::path datadir, std::string mainHost, unsigned short mainPort, std::string rpcuser, std::string rpcpassword)
 {
     std::string db_path = (datadir / "drivechain").string();
-    this->drivechain = new_drivechain(
+    this->drivechain = drivechain_rust::new_drivechain(
                            db_path,
                            THIS_SIDECHAIN,
                            mainHost,
@@ -190,7 +190,7 @@ std::string CDrivechain::FormatDepositAddress(const std::string& address) {
 }
 
 uint160 ExtractMainAddressBytes(const std::string& address) {
-    rust::Vec<unsigned char> addressVch = extract_mainchain_address_bytes(address);
+    rust::Vec<unsigned char> addressVch = drivechain_rust::extract_mainchain_address_bytes(address);
     return uint160(std::vector(addressVch.begin(), addressVch.end()));
 }
 

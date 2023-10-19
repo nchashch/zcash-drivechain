@@ -2210,10 +2210,11 @@ bool ReadBlockFromDisk(CBlock& block, const CDiskBlockPos& pos, const Consensus:
         return error("%s: Deserialize or I/O error - %s at %s", __func__, e.what(), pos.ToString());
     }
 
-    // Check the header
-    if (!(CheckEquihashSolution(&block, consensusParams) &&
-          CheckProofOfWork(block.GetHash(), block.nBits, consensusParams)))
-        return error("ReadBlockFromDisk: Errors in block header at %s", pos.ToString());
+    bool fGenesis = block.GetHash() == Params().GetConsensus().hashGenesisBlock;
+
+    // Check BMM
+    if (!fGenesis && !drivechain->VerifyBMM(block))
+        return error("ReadBlockFromDisk: Block BMM errors at %s", pos.ToString());
 
     return true;
 }
@@ -2968,6 +2969,11 @@ static DisconnectResult DisconnectBlock(const CBlock& block, CValidationState& s
         view.PopAnchor(SaplingMerkleTree::empty_root(), SAPLING);
     }
 
+    if (!drivechain->DisconnectBlock(block, updateIndices)) {
+        error("DisconnectBlock(): failed to update drivechain data");
+        return DISCONNECT_FAILED;
+    }
+
     // Set the old best Orchard anchor back. We can get this from the
     // `hashFinalOrchardRoot` of the last block. However, if the last
     // block was not on or after the Orchard activation height, this
@@ -3621,31 +3627,20 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     int64_t nTime1 = GetTimeMicros(); nTimeConnect += nTime1 - nTimeStart;
     LogPrint("bench", "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs]\n", (unsigned)block.vtx.size(), 0.001 * (nTime1 - nTimeStart), 0.001 * (nTime1 - nTimeStart) / block.vtx.size(), nInputs <= 1 ? 0 : 0.001 * (nTime1 - nTimeStart) / (nInputs-1), nTimeConnect * 0.000001);
 
-    CAmount blockReward = nFees + GetBlockSubsidy(pindex->nHeight, chainparams.GetConsensus());
-    if (block.vtx[0].GetValueOut() > blockReward)
+    CAmount blockReward = nFees;
+    if (block.vtx[0].GetFeesValueOut() > blockReward)
         return state.DoS(100,
                          error("ConnectBlock(): coinbase pays too much (actual=%d vs limit=%d)",
-                               block.vtx[0].GetValueOut(), blockReward),
+                               block.vtx[0].GetFeesValueOut(), blockReward),
                                REJECT_INVALID, "bad-cb-amount");
 
-    // Ensure that the total chain supply is consistent with the value in each pool.
-    if (!fJustCheck &&
-            pindex->nChainTotalSupply.has_value() &&
-            pindex->nChainTransparentValue.has_value() &&
-            pindex->nChainSproutValue.has_value() &&
-            pindex->nChainSaplingValue.has_value() &&
-            pindex->nChainOrchardValue.has_value())
-    {
-        auto expectedChainSupply =
-            pindex->nChainTransparentValue.value() +
-            pindex->nChainSproutValue.value() +
-            pindex->nChainSaplingValue.value() +
-            pindex->nChainOrchardValue.value();
-        if (expectedChainSupply != pindex->nChainTotalSupply.value()) {
-            // This may be added as a rule to ZIP 209 and return a failure in a future soft-fork.
-            error("ConnectBlock(): chain total supply (%d) does not match sum of pool balances (%d) at height %d",
-                    pindex->nChainTotalSupply.value(), expectedChainSupply, pindex->nHeight);
-        }
+    // Check attempt to update deposit DB, this checks that deposit outputs are
+    // valid.
+    if (!drivechain->ConnectBlock(view, block, fJustCheck)) {
+        LogPrintf("failed to connect block");
+        return state.DoS(100,
+                         error("ConnectBlock(): can't update drivechain data when connecting block"),
+                               REJECT_INVALID, "bad-drivechain-update");
     }
 
     // Ensure Sapling authorizations are valid (if we are checking them)
@@ -4886,22 +4881,18 @@ bool CheckBlockHeader(
     const CBlockHeader& block,
     CValidationState& state,
     const CChainParams& chainparams,
-    bool fCheckPOW)
+    bool fCheckBMM)
 {
+    bool fGenesis = block.GetHash() == chainparams.GetConsensus().hashGenesisBlock;
+
     // Check block version
     if (block.nVersion < MIN_BLOCK_VERSION)
         return state.DoS(100, error("CheckBlockHeader(): block version too low"),
                          REJECT_INVALID, "version-too-low");
 
-    // Check Equihash solution is valid
-    if (fCheckPOW && !CheckEquihashSolution(&block, chainparams.GetConsensus()))
-        return state.DoS(100, error("CheckBlockHeader(): Equihash solution invalid"),
-                         REJECT_INVALID, "invalid-solution");
-
-    // Check proof of work matches claimed amount
-    if (fCheckPOW && !CheckProofOfWork(block.GetHash(), block.nBits, chainparams.GetConsensus()))
-        return state.DoS(50, error("CheckBlockHeader(): proof of work failed"),
-                         REJECT_INVALID, "high-hash");
+    if (fCheckBMM && !fGenesis && !drivechain->VerifyBMM(block))
+        return state.DoS(100, error("CheckBlockHeader(): BMM is invalid"),
+                         REJECT_INVALID, "invalid-bmm");
 
     return true;
 }
@@ -4910,7 +4901,7 @@ bool CheckBlock(const CBlock& block,
                 CValidationState& state,
                 const CChainParams& chainparams,
                 ProofVerifier& verifier,
-                bool fCheckPOW,
+                bool fCheckBMM,
                 bool fCheckMerkleRoot,
                 bool fCheckTransactions)
 {
@@ -4919,9 +4910,9 @@ bool CheckBlock(const CBlock& block,
     if (block.fChecked)
         return true;
 
-    // Check that the header is valid (particularly PoW).  This is mostly
+    // Check that the header is valid (particularly BMM).  This is mostly
     // redundant with the call in AcceptBlockHeader.
-    if (!CheckBlockHeader(block, state, chainparams, fCheckPOW))
+    if (!CheckBlockHeader(block, state, chainparams, fCheckBMM))
         return false;
 
     // Check the merkle root.
@@ -4977,7 +4968,7 @@ bool CheckBlock(const CBlock& block,
         return state.DoS(100, error("CheckBlock(): out-of-bounds SigOpCount"),
                          REJECT_INVALID, "bad-blk-sigops", true);
 
-    if (fCheckPOW && fCheckMerkleRoot)
+    if (fCheckBMM && fCheckMerkleRoot)
         block.fChecked = true;
 
     return true;
@@ -5264,9 +5255,27 @@ static bool IsSuperMajority(int minVersion, const CBlockIndex* pstart, unsigned 
     return (nFound >= nRequired);
 }
 
+bool HandleMainchainReorg(CValidationState& state, const CChainParams& chainparams)
+{
+    LOCK(cs_main);
+    CBlockIndex* pindex = chainActive.Tip();
+    bool fGenesis = pindex->GetBlockHeader().GetHash() == chainparams.GetConsensus().hashGenesisBlock;
+    // If a mainchain block with a bmm commitment for the tip is disconnected,
+    // then we also must disconnect the tip.
+    while (!fGenesis && drivechain->VerifyBMM(pindex->GetBlockHeader()) && !drivechain->IsConnected(pindex->GetBlockHeader())) {
+        // So we invalidate the tip until we reach a block with a commitment in
+        // a mainchain block that is part of consensus.
+        InvalidateBlock(state, chainparams, pindex);
+        pindex = chainActive.Tip();
+    }
+    return ActivateBestChain(state, chainparams);
+}
 
 bool ProcessNewBlock(CValidationState& state, const CChainParams& chainparams, const CNode* pfrom, const CBlock* pblock, bool fForceProcessing, const CDiskBlockPos* dbp)
 {
+    if (!HandleMainchainReorg(state, chainparams)) {
+        return error("%s: HandleMainchainReorg FAILED", __func__);
+    }
     auto span = TracingSpan("info", "main", "ProcessNewBlock");
     auto spanGuard = span.Enter();
 

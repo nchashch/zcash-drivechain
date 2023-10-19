@@ -87,10 +87,11 @@ uint256 CBlock::BuildAuthDataMerkleTree() const
 std::string CBlock::ToString() const
 {
     std::stringstream s;
-    s << strprintf("CBlock(hash=%s, ver=%d, hashPrevBlock=%s, hashMerkleRoot=%s, hashBlockCommitments=%s, nTime=%u, nBits=%08x, nNonce=%s, vtx=%u)\n",
+    s << strprintf("CBlock(hash=%s, ver=%d, hashPrevBlock=%s, hashPrevMainBlock=%s, hashMerkleRoot=%s, hashBlockCommitments=%s, nTime=%u, nBits=%08x, nNonce=%s, vtx=%u)\n",
         GetHash().ToString(),
         nVersion,
         hashPrevBlock.ToString(),
+        hashPrevMainBlock.ToString(),
         hashMerkleRoot.ToString(),
         hashBlockCommitments.ToString(),
         nTime, nBits, nNonce.ToString(),

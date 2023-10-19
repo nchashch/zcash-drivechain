@@ -14,7 +14,7 @@
 class CDrivechain
 {
 private:
-    Drivechain* drivechain;
+    drivechain_rust::Drivechain* drivechain;
     std::optional<CBlock> block;
 public:
     CDrivechain(fs::path datadir, std::string mainHost, unsigned short mainPort, std::string rpcuser, std::string rpcpassword);

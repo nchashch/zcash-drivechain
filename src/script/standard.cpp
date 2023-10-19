@@ -31,6 +31,7 @@ const char* GetTxnOutputType(txnouttype t)
     case TX_SCRIPTHASH: return "scripthash";
     case TX_MULTISIG: return "multisig";
     case TX_NULL_DATA: return "nulldata";
+    case TX_WITHDRAWAL: return "withdrawal";
     }
     return NULL;
 }
@@ -52,6 +53,17 @@ static bool MatchPayToPubkeyHash(const CScript& script, valtype& pubkeyhash)
 {
     if (script.size() == 25 && script[0] == OP_DUP && script[1] == OP_HASH160 && script[2] == 20 && script[23] == OP_EQUALVERIFY && script[24] == OP_CHECKSIG) {
         pubkeyhash = valtype(script.begin () + 3, script.begin() + 23);
+        return true;
+    }
+    return false;
+}
+
+static bool MatchWithdrawal(const CScript& script, valtype& refundKeyHash, valtype& mainAddress, valtype& mainFee)
+{
+    CScript p2pkh(script.begin()+30, script.end());
+    if (script.size() == 30 + 25 && script[0] == 28 && script[29] == OP_DROP && MatchPayToPubkeyHash(p2pkh, refundKeyHash)) {
+        mainAddress = valtype(script.begin()+1, script.begin()+21);
+        mainFee = valtype(script.begin()+21, script.begin()+29);
         return true;
     }
     return false;
@@ -118,6 +130,17 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, std::vector<std::v
         return true;
     }
 
+    std::vector<unsigned char> refundKeyHash;
+    std::vector<unsigned char> mainAddress;
+    std::vector<unsigned char> mainFee;
+    if (MatchWithdrawal(scriptPubKey, refundKeyHash, mainAddress, mainFee)) {
+        typeRet = TX_WITHDRAWAL;
+        vSolutionsRet.push_back(std::move(refundKeyHash));
+        vSolutionsRet.push_back(std::move(mainAddress));
+        vSolutionsRet.push_back(std::move(mainFee));
+        return true;
+    }
+
     unsigned int required;
     std::vector<std::vector<unsigned char>> keys;
     if (MatchMultisig(scriptPubKey, required, keys)) {
@@ -142,6 +165,7 @@ int ScriptSigArgsExpected(txnouttype t, const std::vector<std::vector<unsigned c
         return -1;
     case TX_PUBKEY:
         return 1;
+    case TX_WITHDRAWAL:
     case TX_PUBKEYHASH:
         return 2;
     case TX_MULTISIG:
@@ -178,6 +202,15 @@ bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet)
     else if (whichType == TX_SCRIPTHASH)
     {
         addressRet = CScriptID(uint160(vSolutions[0]));
+        return true;
+    }
+    else if (whichType == TX_WITHDRAWAL)
+    {
+        uint160 mainAddress(vSolutions[1]);
+        CDataStream ssMainFee(vSolutions[2], SER_NETWORK, PROTOCOL_VERSION);
+        CAmount mainFee;
+        ssMainFee >> mainFee;
+        addressRet = CWithdrawal(uint160(vSolutions[0]), mainAddress, mainFee);
         return true;
     }
     // Multisig txns have more than one address...
@@ -247,6 +280,21 @@ public:
     bool operator()(const CScriptID &scriptID) const {
         script->clear();
         *script << OP_HASH160 << ToByteVector(scriptID) << OP_EQUAL;
+        return true;
+    }
+
+    bool operator()(const CWithdrawal &withdrawal) const {
+        script->clear();
+        std::vector<unsigned char> mainAddressVch(withdrawal.mainAddress.begin(), withdrawal.mainAddress.end());
+        assert(mainAddressVch.size() == 20);
+        CDataStream ssMainFee(SER_NETWORK, PROTOCOL_VERSION);
+        ssMainFee << withdrawal.mainFee;
+        std::vector<unsigned char> mainFeeVch(ssMainFee.begin(), ssMainFee.end());
+        assert(mainFeeVch.size() == 8);
+        std::vector<unsigned char> vch(mainAddressVch.begin(), mainAddressVch.end());
+        vch.insert(vch.end(), mainFeeVch.begin(), mainFeeVch.end());
+        assert(vch.size() == 28);
+        *script << vch << OP_DROP << OP_DUP << OP_HASH160 << ToByteVector(withdrawal.refundKeyID) << OP_EQUALVERIFY << OP_CHECKSIG;
         return true;
     }
 };
